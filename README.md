@@ -41,7 +41,7 @@ The project is configured for static export and includes a GitHub Actions workfl
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    ```
 3. For a normal project page, the workflow automatically uses `/<repo-name>` as `NEXT_PUBLIC_BASE_PATH`.
-4. If you use a custom domain, set the repository variable `NEXT_PUBLIC_BASE_PATH=/`.
+4. For a `username.github.io` / organization Pages repo or a custom domain, the base path should be `/`. The workflow detects `.github.io` repos automatically; you can also set the repository variable `NEXT_PUBLIC_BASE_PATH=/`.
 5. Push to `main`, or run the **Deploy to GitHub Pages** workflow manually.
 
 To test the same path behavior locally:
