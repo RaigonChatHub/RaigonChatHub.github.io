@@ -205,7 +205,7 @@ export default function Login() {
           {!supabaseReady && (
             <div role="alert" className="mb-5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
               This GitHub Pages build is missing Supabase configuration. Set `NEXT_PUBLIC_SUPABASE_URL` and
-              `NEXT_PUBLIC_SUPABASE_ANON_KEY` as repository variables or secrets, then rerun the Pages workflow.
+              `NEXT_PUBLIC_SUPABASE_ANON_KEY` as Actions variables or secrets for the build environment, then rerun the Pages workflow.
             </div>
           )}
 
