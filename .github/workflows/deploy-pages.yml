@@ -21,10 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-    env:
-      NEXT_PUBLIC_BASE_PATH: ${{ vars.NEXT_PUBLIC_BASE_PATH || (endsWith(github.event.repository.name, '.github.io') && '/' || format('/{0}', github.event.repository.name)) }}
-      NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY || secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,10 +34,35 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Prepare build environment
+        env:
+          BASE_PATH_VAR: ${{ vars.NEXT_PUBLIC_BASE_PATH }}
+          SUPABASE_URL_SECRET: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY_SECRET: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "$BASE_PATH_VAR" ]; then
+            echo "NEXT_PUBLIC_BASE_PATH=$BASE_PATH_VAR" >> "$GITHUB_ENV"
+          elif [ -z "$NEXT_PUBLIC_BASE_PATH" ]; then
+            repo_name="${GITHUB_REPOSITORY##*/}"
+            if [[ "$repo_name" == *.github.io ]]; then
+              echo "NEXT_PUBLIC_BASE_PATH=/" >> "$GITHUB_ENV"
+            else
+              echo "NEXT_PUBLIC_BASE_PATH=/$repo_name" >> "$GITHUB_ENV"
+            fi
+          fi
+
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_URL_SECRET" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL_SECRET" >> "$GITHUB_ENV"
+          fi
+
+          if [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] && [ -n "$SUPABASE_ANON_KEY_SECRET" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY_SECRET" >> "$GITHUB_ENV"
+          fi
+
       - name: Validate build environment
         run: |
           if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
-            echo "::error::Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY as GitHub repository variables or secrets."
+            echo "::error::Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY as GitHub Actions variables or secrets for the github-pages environment, or as repository variables/secrets."
             exit 1
           fi
 
