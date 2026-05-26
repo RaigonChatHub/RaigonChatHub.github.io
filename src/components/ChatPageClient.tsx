@@ -2,16 +2,17 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import ChatRoom from '@/components/ChatRoom';
 import Login from '@/components/Login';
 import Sidebar from '@/components/Sidebar';
 import AgeVerification from '@/components/AgeVerification';
 import { useAuth } from '@/context/AuthContext';
 
-export default function ChatPageClient() {
-  const searchParams = useSearchParams();
-  const chatId = searchParams.get('id');
+interface ChatPageClientProps {
+  chatId?: string;
+}
+
+export default function ChatPageClient({ chatId }: ChatPageClientProps) {
   const { user, loading } = useAuth();
   const [mounted, setMounted] = useState(false);
 
@@ -57,14 +58,13 @@ export default function ChatPageClient() {
           window.location.href = '/';
         }}
         onSelectChat={(id) => {
-          window.history.pushState(null, '', `/chat/?id=${encodeURIComponent(id)}`);
-          window.dispatchEvent(new PopStateEvent('popstate'));
+          window.location.href = `/chat/${encodeURIComponent(id)}`;
         }}
       />
       <ChatRoom
         chatId={chatId}
         onOpenChat={(id) => {
-          window.location.href = `/chat/?id=${encodeURIComponent(id)}`;
+          window.location.href = `/chat/${encodeURIComponent(id)}`;
         }}
       />
     </main>
