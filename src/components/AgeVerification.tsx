@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { createClient } from '@/lib/supabase';
+import { createClient, hasSupabaseConfig } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from './ToastProvider';
 
@@ -25,13 +25,18 @@ export default function AgeVerification() {
   const [dob, setDob] = useState('');
   const [parentEmail, setParentEmail] = useState('');
   const [error, setError] = useState('');
-  const supabase = createClient();
   const { showToast } = useToast();
 
   if (!user || !profile || profile.age !== null) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasSupabaseConfig()) {
+      setError('Supabase is not configured for this deployment.');
+      return;
+    }
+
+    const supabase = createClient();
     const age = getValidAge(dob);
 
     if (age === null) {

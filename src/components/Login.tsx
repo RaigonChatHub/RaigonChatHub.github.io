@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Bot, MessageSquare, Radio, ShieldCheck, Sparkles, Users } from 'lucide-react';
-import { createClient } from '@/lib/supabase';
+import { createClient, hasSupabaseConfig } from '@/lib/supabase';
 import Logo from './Logo';
 import { useToast } from './ToastProvider';
 import { useTheme } from '@/context/ThemeContext';
@@ -36,14 +36,20 @@ export default function Login() {
   const [parentEmail, setParentEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const supabase = createClient();
   const { showToast } = useToast();
   const { theme, toggleTheme } = useTheme();
+  const supabaseReady = hasSupabaseConfig();
 
   const age = dob ? getAgeFromDob(dob) : null;
   const requiresParent = age !== null && age < 13;
 
   const handleGoogleLogin = async () => {
+    if (!supabaseReady) {
+      setError('Supabase is not configured for this deployment.');
+      return;
+    }
+
+    const supabase = createClient();
     const { error: googleError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -62,8 +68,14 @@ export default function Login() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (!supabaseReady) {
+      setError('Supabase is not configured for this deployment.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
+    const supabase = createClient();
 
     if (isSignUp) {
       if (!dob || age === null) {
@@ -190,6 +202,13 @@ export default function Login() {
             </div>
           </div>
 
+          {!supabaseReady && (
+            <div role="alert" className="mb-5 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
+              This GitHub Pages build is missing Supabase configuration. Set `NEXT_PUBLIC_SUPABASE_URL` and
+              `NEXT_PUBLIC_SUPABASE_ANON_KEY` as repository variables or secrets, then rerun the Pages workflow.
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {isSignUp && (
               <>
@@ -220,7 +239,7 @@ export default function Login() {
               </div>
             )}
 
-            <button type="submit" disabled={loading} className="ui-button primary w-full justify-center py-3">
+            <button type="submit" disabled={loading || !supabaseReady} className="ui-button primary w-full justify-center py-3">
               {loading ? 'Processing...' : isSignUp ? 'Sign up' : 'Sign in'}
             </button>
           </form>
@@ -231,7 +250,7 @@ export default function Login() {
             <span className="h-px flex-1 bg-border-token" />
           </div>
 
-          <button type="button" onClick={handleGoogleLogin} className="ui-button secondary w-full justify-center py-3">
+          <button type="button" onClick={handleGoogleLogin} disabled={!supabaseReady} className="ui-button secondary w-full justify-center py-3">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-inverted">
               G
             </span>
