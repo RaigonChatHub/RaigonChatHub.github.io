@@ -7,6 +7,7 @@ import Login from '@/components/Login';
 import Sidebar from '@/components/Sidebar';
 import AgeVerification from '@/components/AgeVerification';
 import { useAuth } from '@/context/AuthContext';
+import { appPath } from '@/lib/paths';
 
 interface ChatPageClientProps {
   chatId?: string;
@@ -55,16 +56,16 @@ export default function ChatPageClient({ chatId }: ChatPageClientProps) {
         currentView="chat"
         currentChatId={currentChatId}
         onNavigate={() => {
-          window.location.href = '/';
+          window.location.href = appPath('/');
         }}
         onSelectChat={(id) => {
-          window.location.href = `/chat/${encodeURIComponent(id)}`;
+          window.location.href = appPath(`/#chat=${encodeURIComponent(id)}`);
         }}
       />
       <ChatRoom
         chatId={chatId}
         onOpenChat={(id) => {
-          window.location.href = `/chat/${encodeURIComponent(id)}`;
+          window.location.href = appPath(`/#chat=${encodeURIComponent(id)}`);
         }}
       />
     </main>

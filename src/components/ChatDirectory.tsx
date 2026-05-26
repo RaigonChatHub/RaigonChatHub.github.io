@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { Calendar, Compass, Image as ImageIcon, Loader2, Mail, MessageSquare, Moon, Palette, Plus, Save, Search, Settings, Sun, User, UserPlus, Users, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
@@ -360,8 +361,8 @@ export default function ChatDirectory({
             <section className="surface-card p-6">
               <h3 className="text-lg font-bold text-primary">Legal</h3>
               <div className="mt-4 grid gap-2 text-sm">
-                <a href="/terms/" className="text-link transition hover:text-link-hover">Terms of Service</a>
-                <a href="/privacy/" className="text-link transition hover:text-link-hover">Privacy Policy</a>
+                <Link href="/terms/" className="text-link transition hover:text-link-hover">Terms of Service</Link>
+                <Link href="/privacy/" className="text-link transition hover:text-link-hover">Privacy Policy</Link>
               </div>
             </section>
           </div>

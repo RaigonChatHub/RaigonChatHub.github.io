@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { Bot, Copy, Gavel, Link2, Loader2, Megaphone, MessageSquarePlus, Pin, Plus, RefreshCw, Save, Send, Settings, ShieldAlert, ShieldCheck, Star, X } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import { appUrl } from '@/lib/paths';
 import { useToast } from './ToastProvider';
 
 type ProfileRole = 'user' | 'admin';
@@ -391,7 +392,7 @@ export default function ChatRoom({ chatId, onOpenChat }: { chatId: string; onOpe
 
   const copyChatLink = async () => {
     const code = chatInfo?.invite_enabled && chatInfo.invite_code ? `&invite=${encodeURIComponent(chatInfo.invite_code)}` : '';
-    const link = `${window.location.origin}/#chat=${encodeURIComponent(chatId)}${code}`;
+    const link = appUrl(`#chat=${encodeURIComponent(chatId)}${code}`);
     await navigator.clipboard.writeText(link);
     showToast({ title: 'Chat link copied', variant: 'success' });
   };
@@ -823,7 +824,7 @@ function ChatSettings({
 
   const copyInvite = async () => {
     const code = chat.invite_enabled && chat.invite_code ? `&invite=${encodeURIComponent(chat.invite_code)}` : '';
-    const link = `${window.location.origin}/#chat=${encodeURIComponent(chat.id)}${code}`;
+    const link = appUrl(`#chat=${encodeURIComponent(chat.id)}${code}`);
     await navigator.clipboard.writeText(link);
     showToast({ title: 'Invite link copied', variant: 'success' });
   };

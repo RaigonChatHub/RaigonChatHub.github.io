@@ -3,12 +3,14 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
+const rawBasePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const basePath = rawBasePath === "/" ? "" : rawBasePath.replace(/\/$/, "");
 
 export const metadata: Metadata = {
   title: "Raigon Chat Hub",
   description: "Modern, high-performance chat service",
   icons: {
-    icon: "/icon.png",
+    icon: `${basePath}/icon.png`,
   },
 };
 

@@ -32,9 +32,22 @@ npm run dev
 
 ### 3. Deployment to GitHub Pages
 
-The project is configured for static export.
+The project is configured for static export and includes a GitHub Actions workflow at `.github/workflows/deploy-pages.yml`.
 
-1. Run `npm run build`.
-2. Push the contents of the `out` directory to your `gh-pages` branch or configure GitHub Actions to deploy from the `main` branch using the `out` folder.
+1. In GitHub, open **Settings > Pages** and set **Source** to **GitHub Actions**.
+2. Add repository variables or secrets for:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=your-project-url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+   ```
+3. For a normal project page, the workflow automatically uses `/<repo-name>` as `NEXT_PUBLIC_BASE_PATH`.
+4. If you use a custom domain, set the repository variable `NEXT_PUBLIC_BASE_PATH=/`.
+5. Push to `main`, or run the **Deploy to GitHub Pages** workflow manually.
+
+To test the same path behavior locally:
+
+```bash
+NEXT_PUBLIC_BASE_PATH=/Raigon-Chat-Hub npm run build
+```
 
 

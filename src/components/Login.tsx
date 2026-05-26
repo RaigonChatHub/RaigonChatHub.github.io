@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { ArrowRight, Bot, MessageSquare, Radio, ShieldCheck, Sparkles, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import Logo from './Logo';
 import { useToast } from './ToastProvider';
 import { useTheme } from '@/context/ThemeContext';
+import { appUrl } from '@/lib/paths';
 
 function getAgeFromDob(dob: string) {
   const birthday = new Date(`${dob}T00:00:00`);
@@ -45,7 +47,7 @@ export default function Login() {
     const { error: googleError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        redirectTo: appUrl(),
       },
     });
 
@@ -121,8 +123,8 @@ export default function Login() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <a href="/terms/" className="hidden text-sm font-semibold text-muted transition hover:text-primary sm:inline">Terms</a>
-          <a href="/privacy/" className="hidden text-sm font-semibold text-muted transition hover:text-primary sm:inline">Privacy</a>
+          <Link href="/terms/" className="hidden text-sm font-semibold text-muted transition hover:text-primary sm:inline">Terms</Link>
+          <Link href="/privacy/" className="hidden text-sm font-semibold text-muted transition hover:text-primary sm:inline">Privacy</Link>
           <button type="button" onClick={toggleTheme} className="ui-button secondary px-3 py-2 text-sm">
             {theme === 'dark' ? 'Light' : 'Dark'}
           </button>
@@ -249,9 +251,9 @@ export default function Login() {
 
           <p className="mt-5 text-center text-xs leading-5 text-muted">
             By using Raigon, you agree to the{' '}
-            <a href="/terms/" className="text-link transition hover:text-link-hover">Terms</a>
+            <Link href="/terms/" className="text-link transition hover:text-link-hover">Terms</Link>
             {' '}and{' '}
-            <a href="/privacy/" className="text-link transition hover:text-link-hover">Privacy Policy</a>.
+            <Link href="/privacy/" className="text-link transition hover:text-link-hover">Privacy Policy</Link>.
           </p>
         </div>
       </section>
