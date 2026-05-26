@@ -7,6 +7,12 @@ export function appPath(path = '/') {
 }
 
 export function appUrl(hash = '') {
+  // Use NEXT_PUBLIC_APP_URL for auth redirects if set (e.g., for GitHub Pages production)
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (configuredUrl) {
+    return `${configuredUrl}${appPath('/')}${hash}`;
+  }
+  // Fall back to current window origin for development
   if (typeof window === 'undefined') return appPath('/');
   return `${window.location.origin}${appPath('/')}${hash}`;
 }

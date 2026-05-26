@@ -94,6 +94,7 @@ export default function Login() {
         email,
         password,
         options: {
+          emailRedirectTo: appUrl(),
           data: {
             user_name: username,
             age,
