@@ -37,6 +37,4 @@ The project is configured for static export.
 1. Run `npm run build`.
 2. Push the contents of the `out` directory to your `gh-pages` branch or configure GitHub Actions to deploy from the `main` branch using the `out` folder.
 
-## Admin Access
 
-The user with username `Admin` (Display Name: `Max`) is seeded as an admin. The hashed password provided in the SQL script is `zo@873387DNH`.
