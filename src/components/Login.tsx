@@ -131,7 +131,7 @@ export default function Login() {
         <div className="flex items-center gap-3">
           <Logo className="h-11 w-11" />
           <div>
-            <p className="text-base font-bold text-primary">Raigon</p>
+            <p className="text-base font-semibold text-primary">Raigon</p>
             <p className="text-xs text-muted">Chat Hub</p>
           </div>
         </div>
@@ -151,7 +151,7 @@ export default function Login() {
             Fast rooms, focused settings, serious moderation
           </div>
 
-          <h1 className="mt-7 max-w-3xl text-5xl font-black leading-[1.02] text-primary sm:text-6xl lg:text-7xl">
+          <h1 className="mt-7 max-w-3xl text-5xl font-semibold leading-[1.02] text-primary sm:text-6xl lg:text-7xl">
             Chat that stays organized when groups get busy.
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-muted">
@@ -198,7 +198,7 @@ export default function Login() {
           <div className="mb-6 flex items-center gap-3">
             <Logo className="h-12 w-12" />
             <div>
-              <h2 className="text-2xl font-bold text-primary">{isSignUp ? 'Create account' : 'Welcome back'}</h2>
+              <h2 className="text-2xl font-semibold text-primary">{isSignUp ? 'Create account' : 'Welcome back'}</h2>
               <p className="text-sm text-muted">{isSignUp ? 'Set up a safer profile.' : 'Open your chats.'}</p>
             </div>
           </div>
@@ -252,7 +252,7 @@ export default function Login() {
           </div>
 
           <button type="button" onClick={handleGoogleLogin} disabled={!supabaseReady} className="ui-button secondary w-full justify-center py-3">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-inverted">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-semibold text-inverted">
               G
             </span>
             Continue with Google

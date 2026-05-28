@@ -5,7 +5,7 @@ export default function PrivacyPage() {
   return (
     <main className="legal-page min-h-screen px-6 py-8">
       <article className="legal-card mx-auto max-w-4xl p-8">
-        <h1 className="text-3xl font-black text-primary">Privacy Policy</h1>
+        <h1 className="text-3xl font-semibold text-primary">Privacy Policy</h1>
         <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-muted">Last updated May 25, 2026</p>
         <p className="mt-5 text-sm leading-7 text-muted">
           This policy explains what Raigon Chat Hub stores and uses to run accounts, chats, moderation, invites, settings, and safety tools.
@@ -42,7 +42,7 @@ export default function PrivacyPage() {
 function LegalSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-5">
-      <h2 className="text-lg font-bold text-primary">{title}</h2>
+      <h2 className="text-lg font-semibold text-primary">{title}</h2>
       <p className="mt-2 text-sm leading-7 text-muted">{children}</p>
     </section>
   );

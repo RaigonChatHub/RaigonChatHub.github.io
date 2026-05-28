@@ -5,7 +5,7 @@ export default function TermsPage() {
   return (
     <main className="legal-page min-h-screen px-6 py-8">
       <article className="legal-card mx-auto max-w-4xl p-8">
-        <h1 className="text-3xl font-black text-primary">Terms of Service</h1>
+        <h1 className="text-3xl font-semibold text-primary">Terms of Service</h1>
         <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-muted">Last updated May 25, 2026</p>
         <p className="mt-5 text-sm leading-7 text-muted">
           These terms govern access to Raigon Chat Hub, including direct messages, private groups, discoverable rooms, moderation tools, bots,
@@ -43,7 +43,7 @@ export default function TermsPage() {
 function LegalSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-5">
-      <h2 className="text-lg font-bold text-primary">{title}</h2>
+      <h2 className="text-lg font-semibold text-primary">{title}</h2>
       <p className="mt-2 text-sm leading-7 text-muted">{children}</p>
     </section>
   );
