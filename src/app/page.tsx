@@ -31,7 +31,7 @@ function readHashRoute(): { view: HubView; chatId: string | null } {
 
   const validViews: HubView[] = [
     'home', 'dms', 'groups', 'discover', 'settings', 'admin', 'bug_report', 'bot_workspace',
-    'admin_users', 'admin_chats', 'admin_bots', 'admin_reports', 'admin_updates'
+    'admin_users', 'admin_chats', 'admin_bots', 'admin_reports', 'admin_updates', 'admin_settings'
   ];
 
   if (validViews.includes(rawHash as HubView)) {
@@ -180,6 +180,7 @@ function HomeContent() {
   const [showUpdateLog, setShowUpdateLog] = useState(false);
   const [viewingHistory, setViewingHistory] = useState(false);
   const [updateHistory, setUpdateHistory] = useState<UpdateLog[]>([]);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
@@ -195,6 +196,21 @@ function HomeContent() {
 
     applyHashRoute();
     window.addEventListener('hashchange', applyHashRoute);
+
+    const url = new URL(window.location.href);
+    const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
+    const hasAuthData = url.searchParams.has('code') || url.searchParams.has('token_hash') || hashParams.has('access_token') || hashParams.has('refresh_token');
+    const authError = url.searchParams.get('error_description') || hashParams.get('error_description') || url.searchParams.get('error') || hashParams.get('error');
+
+    if (authError) {
+      setAuthNotice(decodeURIComponent(authError).replace(/\+/g, ' '));
+    }
+
+    if (hasAuthData || authError) {
+      window.setTimeout(() => {
+        window.history.replaceState(null, '', window.location.pathname);
+      }, 1500);
+    }
 
     // Auto-report fatal errors
     const handleError = (e: ErrorEvent) => {
@@ -236,8 +252,23 @@ function HomeContent() {
     );
   }
 
-  if (!user) return <Login />;
+  if (!user) return <Login initialMessage={authNotice} />;
   if (profile?.age === null) return <AgeVerification />;
+  if (profile && profile.age !== null && profile.age < 13 && !profile.parent_approved) {
+    return (
+      <div className="app-shell flex min-h-screen items-center justify-center p-8">
+        <div className="surface-card max-w-md p-8 text-center">
+          <h1 className="text-2xl font-black text-primary">Parent approval required</h1>
+          <p className="mt-3 text-sm leading-6 text-muted">
+            This account is set up, but chat access stays locked until a parent approves it from the login screen.
+          </p>
+          <button onClick={() => supabase.auth.signOut()} className="ui-button secondary mt-6 px-5 py-3">
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   // Platform Ban Check
   if (profile?.banned) {
@@ -267,7 +298,7 @@ function HomeContent() {
   const navigate = (view: HubView) => {
     setCurrentChatId(null);
     setCurrentView(view);
-    window.location.hash = view;
+    window.history.replaceState(null, '', window.location.pathname);
   };
 
   const openChat = (id: string) => {
@@ -287,7 +318,7 @@ function HomeContent() {
 
       <div className="flex flex-1 overflow-hidden relative">
         {currentView.startsWith('admin') ? (
-          <AdminDashboard section={currentView} />
+          <AdminDashboard section={currentView} onNavigate={navigate} />
         ) : currentView === 'bug_report' ? (
           <BugReport />
         ) : currentView === 'bot_workspace' ? (

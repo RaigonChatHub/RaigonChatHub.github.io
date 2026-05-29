@@ -27,15 +27,19 @@ function getAgeFromDob(dob: string) {
   return age;
 }
 
-export default function Login() {
+type AuthMode = 'signin' | 'signup' | 'parent';
+
+export default function Login({ initialMessage }: { initialMessage?: string | null }) {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
   const [dob, setDob] = useState('');
   const [parentEmail, setParentEmail] = useState('');
+  const [childEmail, setChildEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialMessage ?? null);
   const { showToast } = useToast();
   const { theme, toggleTheme } = useTheme();
   const supabaseReady = hasSupabaseConfig();
@@ -77,7 +81,25 @@ export default function Login() {
     setError(null);
     const supabase = createClient();
 
-    if (isSignUp) {
+    if (authMode === 'parent') {
+      const { error: parentError } = await supabase.rpc('approve_parent_login', {
+        child_email: childEmail.trim(),
+        guardian_email: parentEmail.trim(),
+      });
+
+      if (parentError) {
+        setError(parentError.message);
+      } else {
+        showToast({
+          title: 'Child account approved',
+          description: 'The child account can now use chat features.',
+          variant: 'success',
+        });
+        setAuthMode('signin');
+        setChildEmail('');
+        setParentEmail('');
+      }
+    } else if (isSignUp) {
       if (!dob || age === null) {
         setError('Enter a valid date of birth.');
         setLoading(false);
@@ -125,6 +147,38 @@ export default function Login() {
     setLoading(false);
   };
 
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      setError('Enter your email address first.');
+      return;
+    }
+
+    if (!supabaseReady) {
+      setError('Supabase is not configured for this deployment.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    const supabase = createClient();
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: appUrl(),
+    });
+
+    if (resetError) setError(resetError.message);
+    else {
+      showToast({
+        title: 'Reset email sent',
+        description: 'Check your inbox for the password reset link.',
+        variant: 'success',
+      });
+    }
+    setLoading(false);
+  };
+
+  const panelTitle = authMode === 'parent' ? 'Parent approval' : isSignUp ? 'Create account' : 'Welcome back';
+  const panelSubtitle = authMode === 'parent' ? 'Approve a child account.' : isSignUp ? 'Set up a safer profile.' : 'Open your chats.';
+
   return (
     <main className="landing-shell min-h-screen">
       <nav className="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-5">
@@ -159,11 +213,11 @@ export default function Login() {
           </p>
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <button type="button" onClick={() => setIsSignUp(true)} className="ui-button primary px-5 py-3">
+            <button type="button" onClick={() => { setAuthMode('signin'); setIsSignUp(true); }} className="ui-button primary px-5 py-3">
               Create account
               <ArrowRight className="h-4 w-4" />
             </button>
-            <button type="button" onClick={() => setIsSignUp(false)} className="ui-button secondary px-5 py-3">
+            <button type="button" onClick={() => { setAuthMode('signin'); setIsSignUp(false); }} className="ui-button secondary px-5 py-3">
               Sign in
             </button>
           </div>
@@ -198,8 +252,8 @@ export default function Login() {
           <div className="mb-6 flex items-center gap-3">
             <Logo className="h-12 w-12" />
             <div>
-              <h2 className="text-2xl font-semibold text-primary">{isSignUp ? 'Create account' : 'Welcome back'}</h2>
-              <p className="text-sm text-muted">{isSignUp ? 'Set up a safer profile.' : 'Open your chats.'}</p>
+              <h2 className="text-2xl font-semibold text-primary">{panelTitle}</h2>
+              <p className="text-sm text-muted">{panelSubtitle}</p>
             </div>
           </div>
 
@@ -211,7 +265,12 @@ export default function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
+            {authMode === 'parent' ? (
+              <>
+                <Field label="Child account email" type="email" required placeholder="child@example.com" value={childEmail} onChange={setChildEmail} />
+                <Field label="Parent email" type="email" required placeholder="parent@example.com" value={parentEmail} onChange={setParentEmail} />
+              </>
+            ) : isSignUp && (
               <>
                 <Field label="Username" type="text" required placeholder="dragon_slayer" value={username} onChange={setUsername} />
                 <Field label="Date of birth" type="date" required placeholder="" value={dob} onChange={setDob} max={new Date().toISOString().slice(0, 10)} />
@@ -231,8 +290,12 @@ export default function Login() {
               </>
             )}
 
-            <Field label="Email address" type="email" required placeholder="you@example.com" value={email} onChange={setEmail} />
-            <Field label="Password" type="password" required placeholder="Enter your password" value={password} onChange={setPassword} />
+            {authMode !== 'parent' && (
+              <>
+                <Field label="Email address" type="email" required placeholder="you@example.com" value={email} onChange={setEmail} />
+                <Field label="Password" type="password" required placeholder="Enter your password" value={password} onChange={setPassword} />
+              </>
+            )}
 
             {error && (
               <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
@@ -241,32 +304,55 @@ export default function Login() {
             )}
 
             <button type="submit" disabled={loading || !supabaseReady} className="ui-button primary w-full justify-center py-3">
-              {loading ? 'Processing...' : isSignUp ? 'Sign up' : 'Sign in'}
+              {loading ? 'Processing...' : authMode === 'parent' ? 'Approve child account' : isSignUp ? 'Sign up' : 'Sign in'}
             </button>
           </form>
 
-          <div className="my-5 flex items-center gap-3 text-xs uppercase text-muted">
-            <span className="h-px flex-1 bg-border-token" />
-            Or
-            <span className="h-px flex-1 bg-border-token" />
-          </div>
+          {authMode !== 'parent' && (
+            <>
+              {!isSignUp && (
+                <button type="button" onClick={handleForgotPassword} disabled={loading || !supabaseReady} className="mt-3 w-full text-center text-sm font-medium text-link transition hover:opacity-80">
+                  Forgot password?
+                </button>
+              )}
 
-          <button type="button" onClick={handleGoogleLogin} disabled={!supabaseReady} className="ui-button secondary w-full justify-center py-3">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-semibold text-inverted">
-              G
-            </span>
-            Continue with Google
+              <div className="my-5 flex items-center gap-3 text-xs uppercase text-muted">
+                <span className="h-px flex-1 bg-border-token" />
+                Or
+                <span className="h-px flex-1 bg-border-token" />
+              </div>
+
+              <button type="button" onClick={handleGoogleLogin} disabled={!supabaseReady} className="ui-button secondary w-full justify-center py-3">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-semibold text-inverted">
+                  G
+                </span>
+                Continue with Google
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setAuthMode('signin');
+              setIsSignUp(!isSignUp);
+            }}
+            className="mt-5 w-full text-center text-sm font-medium text-link transition hover:opacity-80"
+          >
+            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
           </button>
 
           <button
             type="button"
             onClick={() => {
               setError(null);
-              setIsSignUp(!isSignUp);
+              setAuthMode(authMode === 'parent' ? 'signin' : 'parent');
+              setIsSignUp(false);
             }}
-            className="mt-5 w-full text-center text-sm font-medium text-link transition hover:opacity-80"
+            className="mt-3 w-full text-center text-sm font-medium text-muted transition hover:text-primary"
           >
-            {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+            {authMode === 'parent' ? 'Back to sign in' : 'Parent approval'}
           </button>
 
           <p className="mt-5 text-center text-xs leading-5 text-muted">

@@ -4,12 +4,14 @@ import React, { useState } from 'react';
 import { Bug, Send, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { useToast } from './ToastProvider';
+import { useAuth } from '@/context/AuthContext';
 
 export default function BugReport() {
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { showToast } = useToast();
+  const { profile } = useAuth();
   const supabase = createClient();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -17,10 +19,19 @@ export default function BugReport() {
     if (!content.trim() || sending) return;
 
     setSending(true);
-    const { error } = await supabase.rpc('submit_report', {
+    let { error } = await supabase.rpc('submit_report', {
       report_type: 'bug',
       report_content: content.trim()
     });
+
+    if (error && profile) {
+      const fallback = await supabase.from('reports').insert({
+        reporter_id: profile.id,
+        type: 'bug',
+        content: content.trim(),
+      });
+      error = fallback.error;
+    }
 
     if (error) {
       showToast({ title: 'Submission failed', description: error.message, variant: 'error' });

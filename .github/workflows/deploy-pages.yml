@@ -37,7 +37,10 @@ jobs:
       - name: Prepare build environment
         env:
           BASE_PATH_VAR: ${{ vars.NEXT_PUBLIC_BASE_PATH }}
+          APP_URL_VAR: ${{ vars.NEXT_PUBLIC_APP_URL }}
+          SUPABASE_URL_VAR: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_URL_SECRET: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY_VAR: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           SUPABASE_ANON_KEY_SECRET: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
           if [ -n "$BASE_PATH_VAR" ]; then
@@ -51,11 +54,19 @@ jobs:
             fi
           fi
 
-          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_URL_SECRET" ]; then
+          if [ -n "$APP_URL_VAR" ]; then
+            echo "NEXT_PUBLIC_APP_URL=$APP_URL_VAR" >> "$GITHUB_ENV"
+          fi
+
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_URL_VAR" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL_VAR" >> "$GITHUB_ENV"
+          elif [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_URL_SECRET" ]; then
             echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL_SECRET" >> "$GITHUB_ENV"
           fi
 
-          if [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] && [ -n "$SUPABASE_ANON_KEY_SECRET" ]; then
+          if [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] && [ -n "$SUPABASE_ANON_KEY_VAR" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY_VAR" >> "$GITHUB_ENV"
+          elif [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ] && [ -n "$SUPABASE_ANON_KEY_SECRET" ]; then
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY_SECRET" >> "$GITHUB_ENV"
           fi
 

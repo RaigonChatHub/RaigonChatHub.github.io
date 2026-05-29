@@ -13,7 +13,7 @@ import { useToast } from './ToastProvider';
 import ConfirmDialog from './ConfirmDialog';
 import CustomDropdown from './CustomDropdown';
 
-type ProfileRole = 'user' | 'admin';
+type ProfileRole = 'user' | 'admin' | 'owner';
 type MemberRole = 'owner' | 'admin' | 'member';
 
 type CustomBot = {
@@ -76,6 +76,9 @@ type ChatInfo = {
   group_admins_can_delete_chat?: boolean | null;
   messages_per_minute_limit?: number | null;
   message_interval_seconds?: number | null;
+  require_join_approval?: boolean | null;
+  members_can_invite?: boolean | null;
+  show_member_list?: boolean | null;
 };
 
 type ChatMember = {
@@ -104,6 +107,12 @@ type RpcMember = {
 };
 
 const RoleBadge = ({ role, isOwner, memberRole }: { role?: string, isOwner?: boolean, memberRole?: string }) => {
+  if (role === 'owner') return (
+    <span className="platform-owner-badge ml-2 flex items-center gap-1.5 shrink-0">
+       <Star className="h-4 w-4 fill-white text-white" />
+       Platform Owner
+    </span>
+  );
   if (role === 'admin') return (
     <span className="platform-admin-badge ml-2 flex items-center gap-1.5 shrink-0">
        <Star className="h-4 w-4 fill-white text-white" />
@@ -329,6 +338,41 @@ export default function ChatRoom({ chatId, onOpenChat }: { chatId: string; onOpe
      fetchMessages();
   };
 
+  const submitMessageReport = async () => {
+    if (!reportingMessage || sendingReport || !profile) return;
+    setSendingReport(true);
+    let { error } = await supabase.rpc('submit_report', {
+      report_type: 'message',
+      report_content: reportContent.trim() || `Reported message: ${reportingMessage.content}`,
+      target_message_id: reportingMessage.id,
+    });
+
+    if (error) {
+      const fallbackContent = [
+        reportContent.trim() || 'Message reported for review.',
+        '',
+        `Message ID: ${reportingMessage.id}`,
+        `Message: ${reportingMessage.content}`,
+      ].join('\n');
+
+      const fallback = await supabase.from('reports').insert({
+        reporter_id: profile.id,
+        type: 'message',
+        content: fallbackContent,
+      });
+      error = fallback.error;
+    }
+
+    if (error) {
+      showToast({ title: 'Report failed', description: error.message, variant: 'error' });
+    } else {
+      showToast({ title: 'Message reported', variant: 'success' });
+      setReportingMessage(null);
+      setReportContent('');
+    }
+    setSendingReport(false);
+  };
+
   const clearAnnouncement = async () => {
     const { error } = await supabase.rpc('clear_chat_announcement', { target_chat_id: chatId });
     if (!error) {
@@ -359,10 +403,12 @@ export default function ChatRoom({ chatId, onOpenChat }: { chatId: string; onOpe
     <div className="flex h-screen flex-1 flex-col bg-background relative overflow-x-hidden animate-in fade-in duration-300">
       <header className="shrink-0 border-b border-[var(--border)] bg-[var(--surface)] p-4 flex items-center justify-between shadow-sm z-10">
         <div className="flex items-center gap-4">
-          <div className="h-10 w-10 rounded-lg bg-[var(--accent-soft)] flex items-center justify-center font-bold text-rainbow-blue uppercase shadow-sm shrink-0">{(chatInfo?.name || 'C')[0]}</div>
+          <div className="h-10 w-10 rounded-lg bg-[var(--accent-soft)] flex items-center justify-center font-bold text-rainbow-blue uppercase shadow-sm shrink-0 overflow-hidden">
+            {chatInfo?.image_url ? <img src={chatInfo.image_url} alt="" className="h-full w-full object-cover" /> : (chatInfo?.name || 'C')[0]}
+          </div>
           <div className="min-w-0">
             <h2 className="font-bold text-lg text-primary truncate max-w-[120px] md:max-w-md tracking-tight leading-tight">{chatInfo?.name}</h2>
-            <p className="text-[10px] text-muted uppercase font-bold tracking-wider opacity-60">{chatInfo?.is_discoverable ? 'Network Hub' : 'Secure Protocol'}</p>
+            <p className="text-[10px] text-muted uppercase font-bold tracking-wider opacity-60 truncate max-w-[160px] md:max-w-lg">{chatInfo?.description || (chatInfo?.is_discoverable ? 'Network Hub' : 'Secure Protocol')}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -392,7 +438,7 @@ export default function ChatRoom({ chatId, onOpenChat }: { chatId: string; onOpe
           const isSys = m.is_broadcast && !m.sender_id;
           const member = members.find(mem => mem.user_id === m.sender_id);
           const isChatOwner = m.sender_id === chatInfo?.created_by || member?.role === 'owner';
-          const isPlatAdmin = m.profiles?.role === 'admin';
+          const isPlatAdmin = m.profiles?.role === 'admin' || m.profiles?.role === 'owner';
           
           if (isSys) {
              return (
@@ -441,9 +487,9 @@ export default function ChatRoom({ chatId, onOpenChat }: { chatId: string; onOpe
                            </div>
                         )}
                      </div>
-                     <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition duration-200 shrink-0">
+                     <div className="flex flex-col gap-1 opacity-100 transition duration-200 shrink-0 md:opacity-0 md:group-hover:opacity-100">
                         {(isMine || profile?.role === 'admin') && <button onClick={() => setMessageToDelete(m)} className="p-1.5 hover:bg-red-500/10 text-muted hover:text-red-500 rounded transition-all"><Trash2 className="h-3.5 w-3.5" /></button>}
-                        <button onClick={() => setReportingMessage(m)} className="p-1.5 hover:bg-amber-500/10 text-muted hover:text-amber-500 rounded transition-all"><Flag className="h-3.5 w-3.5" /></button>
+                        <button onClick={() => { setReportingMessage(m); setReportContent(''); }} className="p-1.5 hover:bg-amber-500/10 text-muted hover:text-amber-500 rounded transition-all" title="Report message" aria-label="Report message"><Flag className="h-3.5 w-3.5" /></button>
                      </div>
                   </div>
                   <div className="mt-1 flex flex-col gap-1.5">
@@ -487,21 +533,21 @@ export default function ChatRoom({ chatId, onOpenChat }: { chatId: string; onOpe
                   <button onClick={() => setAttachedFile(null)} className="p-1.5 hover:bg-red-500/10 text-muted hover:text-red-500 rounded-lg transition"><X className="h-4 w-4" /></button>
                </div>
             )}
-            <form onSubmit={sendMessage} className="relative flex items-end gap-3">
-               <div className="relative flex-1">
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="absolute left-3 bottom-3 h-8 w-8 flex items-center justify-center text-muted hover:text-primary transition bg-[var(--surface)] rounded-lg border border-[var(--border)] shadow-sm">
-                     <Paperclip className="h-5 w-5" />
-                  </button>
-                  <textarea
-                     value={newMessage}
-                     onChange={e => setNewMessage(e.target.value)}
+             <form onSubmit={sendMessage} className="flex items-end gap-3">
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="h-12 w-12 shrink-0 flex items-center justify-center text-muted hover:text-primary transition bg-[var(--surface-elevated)] rounded-xl border border-[var(--border)] shadow-sm">
+                      <Paperclip className="h-5 w-5" />
+                </button>
+                <div className="relative flex-1">
+                   <textarea
+                      value={newMessage}
+                      onChange={e => setNewMessage(e.target.value)}
                      onKeyDown={handleKeyDown}
-                     placeholder={cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s...` : "Type a message..."}
-                     disabled={cooldownRemaining > 0}
-                     className="form-input w-full pr-4 py-3.5 pl-16 text-sm shadow-inner transition bg-[var(--surface-elevated)] border-transparent focus:border-[var(--accent)] resize-none min-h-[48px] max-h-48 rounded-xl"
-                     rows={1}
-                  />
-                  <input type="file" ref={fileInputRef} onChange={e => setAttachedFile(e.target.files?.[0] || null)} className="hidden" />
+                      placeholder={cooldownRemaining > 0 ? `Wait ${cooldownRemaining}s...` : "Type a message..."}
+                      disabled={cooldownRemaining > 0}
+                      className="form-input w-full px-4 py-3.5 text-sm shadow-inner transition bg-[var(--surface-elevated)] border-transparent focus:border-[var(--accent)] resize-none min-h-[48px] max-h-48 rounded-xl"
+                      rows={1}
+                   />
+                   <input type="file" ref={fileInputRef} onChange={e => setAttachedFile(e.target.files?.[0] || null)} className="hidden" />
                </div>
                <button disabled={(!newMessage.trim() && !attachedFile) || cooldownRemaining > 0 || uploading} className="h-12 w-12 shrink-0 flex items-center justify-center rounded-xl bg-[var(--accent)] text-white shadow-lg disabled:opacity-50 transition active:scale-95">
                   {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
@@ -512,6 +558,40 @@ export default function ChatRoom({ chatId, onOpenChat }: { chatId: string; onOpe
 
       <ConfirmDialog open={Boolean(messageToDelete)} title="Delete Message?" description="This action will permanently remove the message for all users." onConfirm={deleteMessage} onCancel={() => setMessageToDelete(null)} />
       <ConfirmDialog open={showClearAnnounceConfirm} title="Purge Announcement?" description="This will remove the current broadcast from the room header." onConfirm={clearAnnouncement} onCancel={() => setShowClearAnnounceConfirm(false)} />
+
+      {reportingMessage && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="surface-card w-full max-w-md p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-primary">Report message</h3>
+                <p className="mt-1 text-sm leading-6 text-muted">Send this message and nearby context to the admin report log.</p>
+              </div>
+              <button type="button" onClick={() => setReportingMessage(null)} className="rounded-lg p-2 text-muted hover:bg-[var(--surface-elevated)] hover:text-primary" aria-label="Close report dialog">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="mt-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-3 text-sm leading-6 text-primary">
+              {reportingMessage.content}
+            </div>
+            <label className="mt-4 block space-y-2">
+              <span className="text-sm font-semibold text-primary">Reason</span>
+              <textarea
+                value={reportContent}
+                onChange={(event) => setReportContent(event.target.value)}
+                placeholder="What should admins review?"
+                className="form-input min-h-28 w-full resize-y px-3 py-2 text-sm"
+              />
+            </label>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setReportingMessage(null)} disabled={sendingReport} className="ui-button secondary px-4 py-2 text-sm">Cancel</button>
+              <button type="button" onClick={submitMessageReport} disabled={sendingReport} className="ui-button primary px-4 py-2 text-sm">
+                {sendingReport ? 'Sending...' : 'Submit report'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {viewingZip && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-300">
@@ -556,6 +636,9 @@ function ChatSettings({ chat, members, canManage, onClose, onChanged }: any) {
    const [uRem, setURem] = useState(chat.members_can_remove_members);
    const [uBan, setUBan] = useState(chat.members_can_ban_members);
    const [botsOn, setBotsOn] = useState(chat.bots_enabled);
+   const [requireApproval, setRequireApproval] = useState(chat.require_join_approval ?? false);
+   const [membersInvite, setMembersInvite] = useState(chat.members_can_invite ?? true);
+   const [showMembers, setShowMembers] = useState(chat.show_member_list ?? true);
 
    const [inviteUsername, setInviteUsername] = useState('');
    
@@ -571,7 +654,8 @@ function ChatSettings({ chat, members, canManage, onClose, onChanged }: any) {
          message_interval_seconds: interval, managers_can_remove_members: mRem,
          managers_can_timeout_members: mTime, managers_can_ban_members: mBan,
          members_can_remove_members: uRem, members_can_ban_members: uBan,
-         bots_enabled: botsOn
+         bots_enabled: botsOn, require_join_approval: requireApproval,
+         members_can_invite: membersInvite, show_member_list: showMembers
       }).eq('id', chat.id);
       
       if (error) showToast({ title: 'Update failed', description: error.message, variant: 'error' });
@@ -625,13 +709,13 @@ function ChatSettings({ chat, members, canManage, onClose, onChanged }: any) {
 
    const leaveChat = async () => {
       const { error } = await supabase.rpc('leave_chat', { target_chat_id: chat.id });
-      if (!error) window.location.hash = 'home';
+      if (!error) window.history.replaceState(null, '', window.location.pathname);
       else showToast({ title: 'Redaction failed', description: error.message, variant: 'error' });
    };
 
    const deleteChat = async () => {
       const { error } = await supabase.rpc('delete_chat', { target_chat_id: chat.id });
-      if (!error) window.location.hash = 'home';
+      if (!error) window.history.replaceState(null, '', window.location.pathname);
    };
 
    return (
@@ -642,6 +726,7 @@ function ChatSettings({ chat, members, canManage, onClose, onChanged }: any) {
             <NavBtn label="General" icon={Settings} active={tab === 'general'} onClick={() => setTab('general')} />
             <NavBtn label="Branding" icon={ImageIcon} active={tab === 'branding'} onClick={() => setTab('branding')} />
             <NavBtn label="Permissions" icon={ShieldCheck} active={tab === 'permissions'} onClick={() => setTab('permissions')} />
+            <NavBtn label="Access" icon={Lock} active={tab === 'access'} onClick={() => setTab('access')} />
             <NavBtn label="Members" icon={Users} active={tab === 'members'} onClick={() => setTab('members')} />
             <NavBtn label="Safety" icon={ShieldAlert} active={tab === 'safety'} onClick={() => setTab('safety')} />
             <div className="mt-auto space-y-2 pt-6">
@@ -699,8 +784,21 @@ function ChatSettings({ chat, members, canManage, onClose, onChanged }: any) {
                         <p className="text-[10px] font-black text-muted uppercase tracking-[0.3em] px-1 mt-10 border-b border-[var(--border)] pb-3 mb-6 opacity-40">Member Liberties</p>
                         <ToggleRow label="Anarchy Kick" description="Allow any member to kick others." checked={uRem} onChange={setURem} />
                         <ToggleRow label="Anarchy Ban" description="Allow any member to ban others." checked={uBan} onChange={setUBan} />
+                        <ToggleRow label="Member Invites" description="Allow regular members to invite people." checked={membersInvite} onChange={setMembersInvite} />
 
                         <button onClick={save} disabled={busy || !canManage} className="ui-button primary px-10 py-4 font-black shadow-2xl tracking-[0.2em] uppercase rounded-xl mt-6">Update Permissions</button>
+                     </div>
+                  </div>
+               )}
+
+               {tab === 'access' && (
+                  <div className="space-y-8 animate-in fade-in duration-300">
+                     <h2 className="text-3xl font-black text-primary tracking-tight uppercase">Access Controls</h2>
+                     <div className="space-y-6">
+                        <ToggleRow label="Require Join Approval" description="New public-room joins must be approved before access." checked={requireApproval} onChange={setRequireApproval} />
+                        <ToggleRow label="Show Member List" description="Let members see who else is in the room." checked={showMembers} onChange={setShowMembers} />
+                        <ToggleRow label="Bots Enabled" description="Allow configured room bots to respond." checked={botsOn} onChange={setBotsOn} />
+                        <button onClick={save} disabled={busy || !canManage} className="ui-button primary px-10 py-4 font-black shadow-2xl tracking-[0.2em] uppercase rounded-xl">Save Access</button>
                      </div>
                   </div>
                )}
@@ -728,7 +826,7 @@ function ChatSettings({ chat, members, canManage, onClose, onChanged }: any) {
                                  <div className="h-11 w-11 rounded-lg bg-[var(--surface-elevated)] flex items-center justify-center font-black text-muted uppercase shadow-inner">{(m.profiles?.display_name || m.profiles?.username || '?')[0]}</div>
                                  <div>
                                     <div className="flex items-center gap-2.5">
-                                       <span className={m.platform_role === 'admin' ? 'rainbow-name text-sm font-black' : 'text-sm font-black text-primary'}>@{m.profiles?.username}</span>
+                                       <span className={m.profiles?.role === 'admin' || m.profiles?.role === 'owner' ? 'rainbow-name text-sm font-black' : 'text-sm font-black text-primary'}>@{m.profiles?.username}</span>
                                        <RoleBadge role={m.profiles?.role} isOwner={m.user_id === chat.created_by || m.role === 'owner'} memberRole={m.role} />
                                     </div>
                                     <p className="text-[10px] text-muted font-black uppercase tracking-[0.15em] mt-0.5">{m.role}</p>
@@ -738,7 +836,7 @@ function ChatSettings({ chat, members, canManage, onClose, onChanged }: any) {
                                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition duration-200">
                                     {m.role === 'member' && <button onClick={() => manageMember(m.user_id, 'promote')} className="p-2 hover:bg-sky-500/10 rounded-lg text-muted hover:text-sky-500 transition-all" title="Promote to Admin"><ShieldCheck className="h-4 w-4" /></button>}
                                     {m.role === 'admin' && <button onClick={() => manageMember(m.user_id, 'demote')} className="p-2 hover:bg-amber-500/10 rounded-lg text-muted hover:text-amber-500 transition-all" title="Demote to Member"><ShieldX className="h-4 w-4" /></button>}
-                                    {(profile?.role === 'admin' || (profile?.id === chat.created_by)) && (
+                                    {(profile?.role === 'admin' || profile?.role === 'owner' || (profile?.id === chat.created_by)) && (
                                        <button onClick={() => transferOwnership(m.user_id)} className="p-2 hover:bg-sky-500/10 rounded-lg text-muted hover:text-sky-400 transition-all" title="Transfer Ownership"><UserPlus className="h-4 w-4" /></button>
                                     )}
                                     <button onClick={() => manageMember(m.user_id, 'kick')} className="p-2 hover:bg-red-500/10 rounded-lg text-red-500 transition-all" title="Kick Member"><UserMinus className="h-4 w-4" /></button>

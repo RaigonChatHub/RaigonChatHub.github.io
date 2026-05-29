@@ -14,7 +14,7 @@ type Profile = {
   banned: boolean;
   ban_reason: string | null;
   admin_alert: string | null;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'owner';
   avatar_url: string | null;
   bio: string | null;
   status: string | null;

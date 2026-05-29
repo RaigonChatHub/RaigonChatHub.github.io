@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Bot, Code, Loader2, Play, Plus, Save, Trash2, X, AlertCircle, CheckCircle2, ChevronRight, Zap, MessageCircle, Boxes, Layout, Settings as SettingsIcon, Globe, FileJson, Terminal } from 'lucide-react';
+import { Bot, Code, Loader2, Play, Plus, Save, Trash2, X, AlertCircle, CheckCircle2, ChevronRight, Zap, MessageCircle, Boxes, Layout, Settings as SettingsIcon, Globe, FileJson, Terminal, History } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from './ToastProvider';

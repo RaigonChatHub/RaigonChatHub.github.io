@@ -41,25 +41,25 @@ function readRpcChatId(data: unknown): string | null {
 const viewConfig = {
   dms: {
     title: 'Direct messages',
-    description: 'Private conversations with individuals.',
+    description: 'Private conversations you are a member of appear here.',
     icon: MessageSquare,
-    empty: 'No active direct messages.',
+    empty: 'No direct messages yet.',
   },
   groups: {
-    title: 'My Groups',
-    description: 'Rooms you have joined or created.',
+    title: 'Groups',
+    description: 'Create and open member-only group chats.',
     icon: Users,
-    empty: 'You have not joined any groups yet.',
+    empty: 'No group chats available yet.',
   },
   discover: {
-    title: 'Discover Rooms',
-    description: 'Find and join new public communities.',
+    title: 'Discover',
+    description: 'Join public rooms and start talking.',
     icon: Compass,
-    empty: 'No new rooms found to discover.',
+    empty: 'No public rooms are available yet.',
   },
   settings: {
-    title: 'Preferences',
-    description: 'Personalize your platform experience.',
+    title: 'Settings',
+    description: 'Profile, safety, appearance, and account controls.',
     icon: Settings,
     empty: '',
   },
@@ -89,16 +89,19 @@ export default function ChatDirectory({
   const [username, setUsername] = useState(profile?.username ?? '');
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
-  const [themePref, setThemePref] = useState(profile?.theme_pref ?? 'dark');
-  const [density, setDensity] = useState(profile?.message_density ?? 'comfortable');
-  const [fontSize, setFontSize] = useState(profile?.font_size_pref ?? 'medium');
-  const [language, setLanguage] = useState(profile?.language_pref ?? 'en');
+  const [themePref, setThemePref] = useState<string>(profile?.theme_pref ?? 'dark');
+  const [density, setDensity] = useState<string>(profile?.message_density ?? 'comfortable');
+  const [fontSize, setFontSize] = useState<string>(profile?.font_size_pref ?? 'medium');
+  const [language, setLanguage] = useState<string>(profile?.language_pref ?? 'en');
   const [showOnline, setShowOnline] = useState(profile?.privacy_options?.show_online ?? true);
   const [enterSends, setEnterSends] = useState(profile?.default_chat_behavior?.enter_sends ?? true);
   const [soundsEnabled, setSoundsEnabled] = useState(profile?.sound_settings?.enabled ?? true);
+  const [compactSidebar, setCompactSidebar] = useState(profile?.account_preferences?.compact_sidebar ?? true);
+  const [showMessagePreviews, setShowMessagePreviews] = useState(profile?.privacy_options?.show_message_previews ?? true);
+  const [reduceMotion, setReduceMotion] = useState(profile?.accessibility_prefs?.reduce_motion ?? false);
   const [accountDeleteConfirm, setAccountDeleteConfirm] = useState(false);
 
-  const [newChat, setNewChat] = useState({ name: '', image: '', banner: '', discoverable: false });
+  const [newChat, setNewChat] = useState({ name: '', description: '', image: '', banner: '', discoverable: false });
 
   const config = viewConfig[view];
   const Icon = config.icon;
@@ -118,6 +121,9 @@ export default function ChatDirectory({
       setShowOnline(profile.privacy_options?.show_online ?? true);
       setEnterSends(profile.default_chat_behavior?.enter_sends ?? true);
       setSoundsEnabled(profile.sound_settings?.enabled ?? true);
+      setCompactSidebar(profile.account_preferences?.compact_sidebar ?? true);
+      setShowMessagePreviews(profile.privacy_options?.show_message_previews ?? true);
+      setReduceMotion(profile.accessibility_prefs?.reduce_motion ?? false);
     }
   }, [profile]);
 
@@ -179,9 +185,11 @@ export default function ChatDirectory({
         message_density: density,
         font_size_pref: fontSize,
         language_pref: language,
-        privacy_options: { ...profile.privacy_options, show_online: showOnline },
+        privacy_options: { ...profile.privacy_options, show_online: showOnline, show_message_previews: showMessagePreviews },
         default_chat_behavior: { ...profile.default_chat_behavior, enter_sends: enterSends },
-        sound_settings: { ...profile.sound_settings, enabled: soundsEnabled }
+        sound_settings: { ...profile.sound_settings, enabled: soundsEnabled },
+        accessibility_prefs: { ...profile.accessibility_prefs, reduce_motion: reduceMotion },
+        account_preferences: { ...profile.account_preferences, compact_sidebar: compactSidebar }
      }).eq('id', profile.id);
 
      if (!error) {
@@ -253,8 +261,11 @@ export default function ChatDirectory({
               <h3 className="text-xs font-bold text-muted uppercase tracking-[0.2em]">Platform Preferences</h3>
               <div className="space-y-3">
                  <ToggleRow label="Show Activity Status" description="Let others see when you are active." checked={showOnline} onChange={setShowOnline} />
+                 <ToggleRow label="Show Message Previews" description="Display message snippets in notification surfaces." checked={showMessagePreviews} onChange={setShowMessagePreviews} />
                  <ToggleRow label="Immediate Send" description="Pressing Enter sends your message." checked={enterSends} onChange={setEnterSends} />
                  <ToggleRow label="Audio Notifications" description="Play sounds for new messages." checked={soundsEnabled} onChange={setSoundsEnabled} />
+                 <ToggleRow label="Compact Sidebar" description="Keep the side rail tight on chat screens." checked={compactSidebar} onChange={setCompactSidebar} />
+                 <ToggleRow label="Reduce Motion" description="Limit interface animation where possible." checked={reduceMotion} onChange={setReduceMotion} />
               </div>
             </section>
 
@@ -273,50 +284,55 @@ export default function ChatDirectory({
   }
 
   return (
-    <section className="app-panel flex-1 overflow-y-auto p-8 bg-[var(--background)] animate-in fade-in duration-500">
+    <section className="app-panel flex-1 overflow-y-auto p-8">
       <Header config={config} />
 
-      <div className="mt-8 flex w-full flex-wrap gap-3">
-        <div className="relative min-w-0 flex-1 group">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted" />
-          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder={view === 'discover' ? "Search rooms..." : "Filter chats..."} className="form-input w-full pl-16 py-3 text-sm rounded-xl bg-[var(--surface)] border-transparent focus:border-[var(--accent)] transition-all" />
+      <div className="mt-8 flex max-w-3xl flex-wrap gap-3">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted" />
+          <input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder={view === 'discover' ? 'Search public chats' : view === 'groups' ? 'Search your groups' : 'Search DMs'}
+            className="form-input search-input w-full py-3 pr-4 text-sm"
+          />
         </div>
         {view === 'groups' && (
-          <button onClick={() => setCreateOpen(true)} className="ui-button primary px-6 py-3 font-semibold uppercase tracking-wider rounded-xl"><Plus className="h-4 w-4" /> CREATE</button>
+          <button onClick={() => setCreateOpen(true)} className="ui-button primary px-4 py-3 text-sm"><Plus className="h-4 w-4" /> Create</button>
         )}
       </div>
 
-      <div className="mt-8 grid gap-3 w-full">
+      <div className="mt-8 grid gap-3">
         {loading ? (
-          <div className="flex h-64 items-center justify-center"><Loader2 className="animate-spin text-muted h-8 w-8" /></div>
+          <div className="flex items-center gap-2 text-sm text-muted"><Loader2 className="h-4 w-4 animate-spin" />Loading chats</div>
         ) : filteredChats.length === 0 ? (
-          <div className="surface-card border-dashed border-2 p-16 text-center rounded-3xl">
-            <Icon className="mx-auto h-12 w-12 text-muted/10 mb-4" />
-            <p className="text-lg font-semibold text-muted uppercase tracking-wider">{config.empty}</p>
+          <div className="surface-card border-dashed p-8 text-center">
+            <Icon className="mx-auto h-8 w-8 text-muted" />
+            <p className="mt-3 text-sm text-muted">{config.empty}</p>
           </div>
         ) : (
           filteredChats.map(chat => (
-            <div key={chat.id} className="surface-card flex items-center justify-between p-4 rounded-2xl shadow-sm hover:shadow-md transition-all border border-transparent hover:border-[var(--accent)]/10 group">
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="h-12 w-12 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center font-semibold text-lg text-rainbow-blue shadow-inner group-hover:scale-105 transition-transform">
-                   {chat.image_url ? <img src={chat.image_url} alt="" className="h-full w-full object-cover rounded-xl" /> : (chat.name || 'R')[0].toUpperCase()}
+            <div key={chat.id} className="surface-card flex items-center justify-between p-4">
+              <button type="button" onClick={() => onSelectChat(chat.id)} className="min-w-0 flex flex-1 items-center gap-3 text-left">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[var(--accent-soft)] font-bold text-rainbow-blue">
+                   {chat.image_url ? <img src={chat.image_url} alt="" className="h-full w-full object-cover" /> : (chat.name || 'R')[0].toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                   <h4 className="font-semibold text-primary truncate uppercase tracking-tight">{chat.name || 'Untitled Room'}</h4>
-                   <p className="text-xs text-muted mt-1 flex items-center gap-2 font-bold uppercase tracking-wider">
-                      {chat.is_group ? 'COMMUNITY' : 'DIRECT'}
+                   <p className="truncate font-semibold text-primary">{chat.name || 'Untitled chat'}</p>
+                   <p className="mt-1 flex items-center gap-2 text-xs text-muted">
+                      {chat.is_discoverable ? 'Public room' : chat.is_group ? 'Private group' : 'Direct message'}
                       {chat.last_activity_at && <><span className="h-1 w-1 rounded-full bg-muted" /> {formatDistanceToNow(new Date(chat.last_activity_at))} ago</>}
                    </p>
                 </div>
-              </div>
+              </button>
 
               <div className="flex items-center gap-2">
                  {view === 'discover' ? (
-                    <button disabled={joiningChatId === chat.id} onClick={() => handleJoin(chat.id)} className="ui-button primary px-6 py-2 font-semibold text-xs uppercase tracking-wider rounded-lg shadow-md transition-all">
+                    <button disabled={joiningChatId === chat.id} onClick={() => handleJoin(chat.id)} className="ui-button secondary ml-4 px-3 py-2 text-xs">
                        {joiningChatId === chat.id ? 'JOINING...' : 'JOIN'}
                     </button>
                  ) : (
-                    <button onClick={() => onSelectChat(chat.id)} className="ui-button secondary px-4 py-2 font-semibold text-xs uppercase tracking-wider rounded-lg hover:bg-[var(--accent)] hover:text-white transition-all">OPEN</button>
+                    <button onClick={() => onSelectChat(chat.id)} className="ui-button secondary ml-4 px-3 py-2 text-xs">Open</button>
                  )}
               </div>
             </div>
@@ -331,6 +347,7 @@ export default function ChatDirectory({
              setCreating(true);
              const { data, error } = await supabase.rpc('create_group_chat', {
                 chat_name: newChat.name.trim(),
+                chat_description: newChat.description.trim() || null,
                 make_discoverable: newChat.discoverable,
                 chat_image_url: newChat.image.trim() || null,
                 chat_banner_url: newChat.banner.trim() || null
@@ -358,6 +375,7 @@ export default function ChatDirectory({
 
             <div className="space-y-4">
               <Field label="Group Name" value={newChat.name} onChange={(v: string) => setNewChat({...newChat, name: v})} placeholder="e.g. Dragon Lounge" required />
+              <Field label="Description" value={newChat.description} onChange={(v: string) => setNewChat({...newChat, description: v})} placeholder="What this group is for" />
               <div className="grid md:grid-cols-2 gap-4">
                  <Field label="Icon URL" value={newChat.image} onChange={(v: string) => setNewChat({...newChat, image: v})} placeholder="https://..." />
                  <Field label="Banner URL" value={newChat.banner} onChange={(v: string) => setNewChat({...newChat, banner: v})} placeholder="https://..." />
@@ -377,13 +395,13 @@ export default function ChatDirectory({
 
 function Header({ config }: any) {
   return (
-    <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left duration-700">
-      <div className="h-16 w-16 bg-[var(--accent-soft)] rounded-2xl flex items-center justify-center text-rainbow-blue shadow-xl">
-        <config.icon className="h-8 w-8" />
+    <div className="flex items-start gap-4">
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-rainbow-blue">
+        <config.icon className="h-6 w-6" />
       </div>
       <div>
-        <h2 className="text-3xl font-semibold text-primary tracking-tight uppercase ">{config.title}</h2>
-        <p className="text-muted text-sm mt-1 font-medium">{config.description}</p>
+        <h2 className="text-2xl font-semibold tracking-tight text-primary">{config.title}</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-muted">{config.description}</p>
       </div>
     </div>
   );

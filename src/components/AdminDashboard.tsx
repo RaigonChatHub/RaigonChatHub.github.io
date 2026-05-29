@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   Trash2,
   User,
+  UserPlus,
   X,
   Plus,
   Mail,
@@ -39,7 +40,7 @@ type UserProfile = {
   display_name: string | null;
   age: number | null;
   parent_approved: boolean;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'owner';
   banned: boolean | null;
   ban_reason: string | null;
   admin_alert: string | null;
@@ -68,7 +69,48 @@ type UpdateLog = {
   created_at: string;
 };
 
-export default function AdminDashboard({ section }: { section?: string }) {
+function readContextMessages(value: unknown): any[] | null {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return null;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeReports(value: unknown): ReportDetails[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.map((report: any) => ({
+    report_id: report.report_id ?? report.id,
+    reporter_username: report.reporter_username ?? (Array.isArray(report.profiles) ? report.profiles[0]?.username : report.profiles?.username) ?? 'unknown',
+    reporter_email: report.reporter_email ?? 'Unavailable',
+    report_type: report.report_type ?? report.type,
+    report_content: report.report_content ?? report.content,
+    target_message_id: report.target_message_id ?? null,
+    status: report.status ?? 'pending',
+    created_at: report.created_at,
+    chat_id: report.chat_id ?? null,
+    context_messages: readContextMessages(report.context_messages),
+  }));
+}
+
+type AdminSettings = {
+  admins_can_ban_users: boolean;
+  admins_can_delete_platform_admins: boolean;
+  admins_can_promote_admins: boolean;
+  admins_can_manage_updates: boolean;
+};
+
+function roleLabel(role: UserProfile['role']) {
+  if (role === 'owner') return 'Platform Owner';
+  if (role === 'admin') return 'Platform Admin';
+  return 'User';
+}
+
+export default function AdminDashboard({ section, onNavigate }: { section?: string; onNavigate?: (view: any) => void }) {
   const { profile } = useAuth();
   const supabase = useMemo(() => createClient(), []);
   const { showToast } = useToast();
@@ -77,6 +119,7 @@ export default function AdminDashboard({ section }: { section?: string }) {
   const [chats, setChats] = useState<any[]>([]);
   const [reports, setReports] = useState<ReportDetails[]>([]);
   const [updates, setUpdates] = useState<UpdateLog[]>([]);
+  const [adminSettings, setAdminSettings] = useState<AdminSettings | null>(null);
   const [loading, setLoading] = useState(true);
   
   const [query, setQuery] = useState('');
@@ -96,21 +139,46 @@ export default function AdminDashboard({ section }: { section?: string }) {
     setLoading(true);
     try {
       const [
-        { data: u },
-        { data: c },
-        { data: r },
-        { data: up }
+        { data: u, error: usersError },
+        { data: c, error: chatsError },
+        { data: r, error: reportsError },
+        { data: up, error: updatesError },
+        { data: settingsData }
       ] = await Promise.all([
         supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(100),
         supabase.from('chats').select('*').order('created_at', { ascending: false }),
         supabase.rpc('get_reports_with_emails'),
-        supabase.from('update_logs').select('*').order('created_at', { ascending: false })
+        supabase.from('update_logs').select('*').order('created_at', { ascending: false }),
+        supabase.from('admin_permission_settings').select('*').eq('id', 1).maybeSingle()
       ]);
+
+      let nextReports = normalizeReports(r);
+      let nextReportsError = reportsError;
+
+      if (reportsError) {
+        const { data: fallbackReports, error: fallbackReportsError } = await supabase
+          .from('reports')
+          .select('id, reporter_id, type, content, status, created_at, profiles:reporter_id(username)')
+          .order('created_at', { ascending: false });
+
+        if (!fallbackReportsError) {
+          nextReports = normalizeReports(fallbackReports);
+          nextReportsError = null;
+        } else {
+          nextReportsError = fallbackReportsError;
+        }
+      }
+
+      const fetchError = usersError || chatsError || nextReportsError || updatesError;
+      if (fetchError) {
+        showToast({ title: 'Admin data failed', description: fetchError.message, variant: 'error' });
+      }
 
       setUsers((u ?? []) as UserProfile[]);
       setChats((c ?? []) as any[]);
-      setReports((r ?? []) as ReportDetails[]);
+      setReports(nextReports);
       setUpdates((up ?? []) as UpdateLog[]);
+      setAdminSettings((settingsData as AdminSettings | null) ?? null);
     } catch (err: any) {
       showToast({ title: 'Fetch Error', description: err.message, variant: 'error' });
     }
@@ -118,7 +186,7 @@ export default function AdminDashboard({ section }: { section?: string }) {
   };
 
   useEffect(() => {
-    if (profile?.role === 'admin') fetchData();
+    if (profile?.role === 'admin' || profile?.role === 'owner') fetchData();
   }, [profile]);
 
   const handleModeration = async () => {
@@ -160,13 +228,56 @@ export default function AdminDashboard({ section }: { section?: string }) {
      }
   };
 
+  const changePlatformRole = async (targetId: string, role: UserProfile['role']) => {
+    setBusy(true);
+    const { error } = await supabase.rpc('assign_platform_role', {
+      target_id: targetId,
+      target_role: role,
+    });
+
+    if (error) showToast({ title: 'Role update failed', description: error.message, variant: 'error' });
+    else {
+      showToast({ title: 'Role updated', variant: 'success' });
+      fetchData();
+    }
+    setBusy(false);
+  };
+
+  const saveAdminSettings = async () => {
+    if (!adminSettings) return;
+    setBusy(true);
+    const { error } = await supabase.from('admin_permission_settings').update(adminSettings).eq('id', 1);
+    if (error) showToast({ title: 'Settings failed', description: error.message, variant: 'error' });
+    else showToast({ title: 'Admin settings saved', variant: 'success' });
+    setBusy(false);
+  };
+
   const transferChat = (cid: string) => {
      setTransferTarget(cid);
   };
 
-  if (profile?.role !== 'admin') return <div className="p-8 text-red-500 font-bold uppercase tracking-widest">UNAUTHORIZED</div>;
+  const executeTransfer = async () => {
+    if (!transferTarget || !newOwnerId.trim()) return;
+    setBusy(true);
+    const { error } = await supabase.rpc('transfer_chat_ownership', {
+      target_chat_id: transferTarget,
+      new_owner_id: newOwnerId.trim()
+    });
 
-  const currentSection = section || 'admin_users';
+    if (error) {
+      showToast({ title: 'Transfer failed', description: error.message, variant: 'error' });
+    } else {
+      showToast({ title: 'Ownership transferred', variant: 'success' });
+      setTransferTarget(null);
+      setNewOwnerId('');
+      fetchData();
+    }
+    setBusy(false);
+  };
+
+  if (profile?.role !== 'admin' && profile?.role !== 'owner') return <div className="p-8 text-red-500 font-bold uppercase tracking-widest">UNAUTHORIZED</div>;
+
+  const currentSection = !section || section === 'admin' ? 'admin_users' : section;
 
   return (
     <div className="app-panel flex-1 overflow-y-auto p-8 bg-[var(--background)]">
@@ -178,13 +289,19 @@ export default function AdminDashboard({ section }: { section?: string }) {
             {currentSection === 'admin_chats' && 'Manage Chats'}
             {currentSection === 'admin_reports' && 'Reports & Context'}
             {currentSection === 'admin_updates' && 'Update Hub'}
+            {currentSection === 'admin_settings' && 'Admin Settings'}
           </h2>
           <p className="text-xs text-muted mt-1 font-semibold opacity-70 uppercase tracking-widest">Platform-level security & system override.</p>
         </div>
-        <button onClick={fetchData} className="ui-button secondary h-10 px-6 font-bold uppercase tracking-widest text-[9px]">
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-          Sync Network
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={() => { onNavigate?.('home'); window.history.replaceState(null, '', window.location.pathname); }} className="ui-button secondary h-10 px-4 text-sm font-semibold">
+            Back
+          </button>
+          <button onClick={fetchData} className="ui-button secondary h-10 px-6 font-bold uppercase tracking-widest text-[9px]">
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            Sync Network
+          </button>
+        </div>
       </header>
 
       {loading ? (
@@ -196,12 +313,12 @@ export default function AdminDashboard({ section }: { section?: string }) {
           {currentSection === 'admin_users' && (
             <div className="space-y-4">
               <div className="relative w-full">
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted" />
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-muted" />
                 <input
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   placeholder="Filter network protocols..."
-                  className="form-input w-full pl-14 py-3.5 rounded-xl font-bold text-sm"
+                  className="form-input w-full pl-12 py-3.5 rounded-xl font-bold text-sm"
                 />
               </div>
               <div className="grid gap-3">
@@ -213,16 +330,44 @@ export default function AdminDashboard({ section }: { section?: string }) {
                       </div>
                       <div>
                         <p className="font-bold text-sm text-primary flex items-center gap-2">
-                           <span className={user.role === 'admin' ? 'rainbow-name' : ''}>{user.display_name || user.username}</span>
+                           <span className={user.role === 'admin' || user.role === 'owner' ? 'rainbow-name' : ''}>{user.display_name || user.username}</span>
+                          <span className="text-[8px] bg-[var(--surface-elevated)] text-muted px-2 py-0.5 rounded font-black uppercase tracking-tighter">{roleLabel(user.role)}</span>
                           {user.banned && <span className="text-[8px] bg-red-600 text-white px-2 py-0.5 rounded font-black uppercase tracking-tighter shadow-lg shadow-red-600/20">BANNED</span>}
                           {user.is_warning && <span className="text-[8px] bg-amber-500 text-black px-2 py-0.5 rounded font-black uppercase tracking-tighter">WARNED</span>}
                         </p>
                         <p className="text-[8px] text-muted font-mono uppercase mt-0.5 opacity-50">UID: {user.id}</p>
                       </div>
                     </div>
-                    <button onClick={() => setModTarget(user)} className="ui-button secondary h-9 px-4 font-bold uppercase tracking-widest text-[9px] opacity-0 group-hover:opacity-100 transition-all">MODERATE</button>
+                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      {profile?.role === 'owner' && (
+                        <>
+                          <button disabled={busy} onClick={() => changePlatformRole(user.id, 'user')} className="ui-button secondary h-9 px-3 font-bold uppercase tracking-widest text-[9px]">User</button>
+                          <button disabled={busy} onClick={() => changePlatformRole(user.id, 'admin')} className="ui-button secondary h-9 px-3 font-bold uppercase tracking-widest text-[9px]">Admin</button>
+                          <button disabled={busy} onClick={() => changePlatformRole(user.id, 'owner')} className="ui-button secondary h-9 px-3 font-bold uppercase tracking-widest text-[9px]">Owner</button>
+                        </>
+                      )}
+                      <button onClick={() => setModTarget(user)} className="ui-button secondary h-9 px-4 font-bold uppercase tracking-widest text-[9px]">MODERATE</button>
+                    </div>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {currentSection === 'admin_settings' && (
+            <div className="grid gap-4 max-w-3xl">
+              <div className="surface-card p-6">
+                <h3 className="text-lg font-black text-primary uppercase tracking-tight">Platform Admin Permissions</h3>
+                <p className="mt-1 text-sm text-muted">Platform owners always keep every permission. These switches limit regular platform admins.</p>
+                <div className="mt-6 grid gap-3">
+                  <AdminToggle label="Admins can ban users" checked={adminSettings?.admins_can_ban_users ?? false} onChange={(v) => setAdminSettings((s) => s && ({ ...s, admins_can_ban_users: v }))} />
+                  <AdminToggle label="Admins can remove other platform admins" checked={adminSettings?.admins_can_delete_platform_admins ?? false} onChange={(v) => setAdminSettings((s) => s && ({ ...s, admins_can_delete_platform_admins: v }))} />
+                  <AdminToggle label="Admins can promote users to platform admin" checked={adminSettings?.admins_can_promote_admins ?? false} onChange={(v) => setAdminSettings((s) => s && ({ ...s, admins_can_promote_admins: v }))} />
+                  <AdminToggle label="Admins can manage update logs" checked={adminSettings?.admins_can_manage_updates ?? false} onChange={(v) => setAdminSettings((s) => s && ({ ...s, admins_can_manage_updates: v }))} />
+                </div>
+                <button disabled={busy || profile?.role !== 'owner'} onClick={saveAdminSettings} className="ui-button primary mt-6 px-6 py-3 font-black uppercase tracking-widest text-xs">
+                  Save Settings
+                </button>
               </div>
             </div>
           )}
@@ -240,7 +385,7 @@ export default function AdminDashboard({ section }: { section?: string }) {
                   </div>
                   
                   <div className="space-y-4">
-                     <p className="text-sm text-primary leading-relaxed font-semibold bg-black/10 p-4 rounded-2xl border border-white/5 shadow-inner">"{report.report_content}"</p>
+                     <p className="text-sm text-primary leading-relaxed font-semibold bg-black/10 p-4 rounded-2xl border border-white/5 shadow-inner">&ldquo;{report.report_content}&rdquo;</p>
                      <div className="flex flex-wrap items-center gap-6 mt-4 pt-4 border-t border-[var(--border)]">
                         <div className="flex items-center gap-2">
                            <User className="h-4 w-4 text-sky-400" />
@@ -489,5 +634,14 @@ export default function AdminDashboard({ section }: { section?: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+function AdminToggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-4">
+      <span className="text-sm font-bold text-primary">{label}</span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="h-5 w-5 accent-[var(--accent)]" />
+    </label>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Mail, CheckCircle2, ShieldAlert, Calendar as CalendarIcon, ArrowRight } from 'lucide-react';
+import { Mail, CheckCircle2, ShieldAlert, Calendar as CalendarIcon, ArrowRight, Loader2 } from 'lucide-react';
 import { createClient, hasSupabaseConfig } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from './ToastProvider';
